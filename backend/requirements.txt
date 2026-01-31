@@ -1,0 +1,42 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+python-multipart
+
+# AI/ML
+langchain
+langchain-openai
+langgraph
+openai
+tiktoken
+copilotkit
+
+# Database
+sqlalchemy
+alembic
+psycopg2-binary
+pgvector
+
+# Async/Queue
+redis
+celery[redis]
+
+# Authentication
+bcrypt==4.0.1
+python-jose[cryptography]
+passlib[bcrypt]
+pydantic[email]
+
+# HTTP/WebSocket
+httpx
+websockets
+
+# Utilities
+python-dotenv
+pydantic-settings
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+httpx

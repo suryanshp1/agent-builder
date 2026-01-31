@@ -1,0 +1,144 @@
+services:
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: agentbuilder-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - agentbuilder-network
+    restart: unless-stopped
+
+  # Frontend (React + Vite)
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      # Removed to use relative URLs through Nginx proxy
+      # - VITE_API_URL=http://localhost:8000
+      # - VITE_WS_URL=ws://localhost:8000
+    container_name: agentbuilder-frontend
+    volumes:
+      - ../frontend/src:/app/src
+      - ../frontend/public:/app/public
+    networks:
+      - agentbuilder-network
+    restart: unless-stopped
+
+  # Backend (FastAPI)
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: agentbuilder-backend
+    env_file:
+      - ../.env.docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ../backend/app:/app/app
+    ports:
+      - "8000:8000"
+    networks:
+      - agentbuilder-network
+    restart: unless-stopped
+    # Command is handled by entrypoint script in Dockerfile
+
+  # Celery Worker (Background Tasks)
+  celery_worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: agentbuilder-celery-worker
+    env_file:
+      - ../.env.docker
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    volumes:
+      - ../backend/app:/app/app
+    networks:
+      - agentbuilder-network
+    restart: unless-stopped
+    # Override entrypoint to skip database init (backend handles that)
+    entrypoint: []
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info"]
+
+  # Celery Beat (Scheduler)
+  celery_beat:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: agentbuilder-celery-beat
+    env_file:
+      - ../.env.docker
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    volumes:
+      - ../backend/app:/app/app
+    networks:
+      - agentbuilder-network
+    restart: unless-stopped
+    # Override entrypoint to skip database init (backend handles that)
+    entrypoint: []
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=info"]
+
+  # PostgreSQL with pgvector
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: agentbuilder-postgres
+    environment:
+      - POSTGRES_USER=agentbuilder
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=agentbuilder
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - agentbuilder-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentbuilder"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis (Cache + Celery Broker)
+  redis:
+    image: redis:7-alpine
+    container_name: agentbuilder-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - agentbuilder-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+networks:
+  agentbuilder-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

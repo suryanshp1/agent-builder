@@ -64,8 +64,10 @@ function App() {
               <Route index element={<OverviewPage />} />
               <Route path="agents" element={<AgentsListPage />} />
               <Route path="agents/new" element={<AgentBuilderPage />} />
+              <Route path="agents/:agentId/edit" element={<AgentBuilderPage />} />
               <Route path="workflows" element={<WorkflowsListPage />} />
               <Route path="workflows/new" element={<WorkflowBuilderPage />} />
+              <Route path="workflows/:workflowId" element={<WorkflowBuilderPage />} />
               <Route path="tools" element={<ToolsPage />} />
               <Route path="executions" element={<ExecutionsListPage />} />
               <Route path="executions/:executionId" element={<ExecutionViewerPage />} />

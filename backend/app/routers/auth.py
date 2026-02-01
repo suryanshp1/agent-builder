@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from app.database import get_db
-from app.models.user import User, Organization
+from app.models.user import User, Organization, Project
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
 from app.utils.auth import verify_password, get_password_hash, create_tokens, verify_token
 from app.middleware.auth import get_current_user
@@ -61,6 +61,16 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    
+    # Create default project for the new user
+    default_project = Project(
+        name="My First Project",
+        description="Auto-created default project",
+        organization_id=new_user.organization_id,
+        created_by=new_user.id
+    )
+    db.add(default_project)
+    db.commit()
     
     return new_user
 

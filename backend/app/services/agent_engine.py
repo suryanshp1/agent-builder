@@ -2,10 +2,9 @@
 Agent Engine service for executing LangChain agents with observability
 """
 
-from langchain.agents import AgentExecutor, create_openai_tools_agent
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
-from langchain.callbacks.base import BaseCallbackHandler
+from langchain_core.callbacks.base import BaseCallbackHandler
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 import logging
@@ -110,9 +109,9 @@ class AgentEngine:
         tools: List[Tool],
         execution_id: UUID,
         log_callback
-    ) -> AgentExecutor:
+    ):
         """
-        Create a LangChain AgentExecutor from Agent configuration
+        Create a LangGraph agent from Agent configuration
         
         Args:
             agent: Agent model instance
@@ -121,7 +120,7 @@ class AgentEngine:
             log_callback: Callback function for logging
         
         Returns:
-            Configured AgentExecutor
+            Configured LangGraph agent (executable graph)
         """
         # Initialize LLM
         llm_config = agent.configuration
@@ -142,42 +141,27 @@ class AgentEngine:
             except Exception as e:
                 logger.error(f"Failed to load tool {tool.name}: {e}")
         
-        # Create prompt template
+        # Create system message
         system_instructions = agent.instructions or ""
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", f"""You are {agent.role}.
+        system_message = f"""You are {agent.role}.
 
 Your goal: {agent.goal}
 
 {system_instructions}
 
-Use the available tools to accomplish your goal. Think step-by-step and explain your reasoning."""),
-            MessagesPlaceholder(variable_name="chat_history", optional=True),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ])
+Use the available tools to accomplish your goal. Think step-by-step and explain your reasoning."""
         
-        # Create agent
-        agent_instance = create_openai_tools_agent(
-            llm=llm,
-            tools=langchain_tools,
-            prompt=prompt
-        )
-        
-        # Create executor with callback
+        # Create callback handler
         callback_handler = ExecutionCallbackHandler(execution_id, log_callback)
         
-        executor = AgentExecutor(
-            agent=agent_instance,
+        # Create react agent using LangGraph
+        agent_executor = create_react_agent(
+            model=llm,
             tools=langchain_tools,
-            callbacks=[callback_handler],
-            verbose=True,
-            max_iterations=llm_config.get("max_iterations", 10),
-            max_execution_time=llm_config.get("max_execution_time", 300),  # 5 minutes
-            return_intermediate_steps=True
+            prompt=system_message,
         )
         
-        return executor
+        return agent_executor
     
     async def execute_agent(
         self,
@@ -207,15 +191,26 @@ Use the available tools to accomplish your goal. Think step-by-step and explain 
             # Create executor
             executor = self.create_agent_executor(agent, tools, execution_id, log_callback)
             
-            # Execute agent
+            # Prepare input for LangGraph agent
+            user_query = input_data.get("query", "")
+            
+            # Execute agent - LangGraph agents use invoke with messages
             result = await executor.ainvoke({
-                "input": input_data.get("query", ""),
-                "chat_history": input_data.get("chat_history", [])
+                "messages": [("user", user_query)]
             })
             
+            # Extract output from messages
+            output_text = ""
+            if "messages" in result:
+                # Get the last AI message
+                for msg in reversed(result["messages"]):
+                    if hasattr(msg, 'content') and msg.content:
+                        output_text = msg.content
+                        break
+            
             return {
-                "output": result.get("output"),
-                "intermediate_steps": result.get("intermediate_steps"),
+                "output": output_text,
+                "intermediate_steps": result.get("messages", []),
                 "status": "success"
             }
         

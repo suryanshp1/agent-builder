@@ -78,7 +78,7 @@ class ProjectBase(BaseModel):
 
 
 class ProjectCreate(ProjectBase):
-    organization_id: UUID
+    pass  # organization_id will be auto-filled from current user
 
 
 class ProjectResponse(ProjectBase):

@@ -3,7 +3,6 @@ Workflow Engine service for multi-agent orchestration using LangGraph
 """
 
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolExecutor
 from typing import TypedDict, Annotated, Sequence, Dict, Any, List
 from operator import add
 from uuid import UUID
@@ -63,8 +62,8 @@ class WorkflowEngine:
             step_name = step_config.get("name", f"step_{idx}")
             step_type = step_config.get("type")
             
-            if step_type == "single_agent":
-                # Single agent execution node
+            if step_type == "single_agent" or step_type == "sequential":
+                # Single agent execution node (sequential is treated as single agent)
                 agent_id = UUID(step_config["agent_id"])
                 agent = agents_map.get(agent_id)
                 

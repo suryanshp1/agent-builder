@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
 import apiClient from '../lib/api';
 
@@ -25,6 +25,8 @@ interface WorkflowStep {
 
 export default function WorkflowBuilderPage() {
     const navigate = useNavigate();
+    const { workflowId } = useParams<{ workflowId?: string }>();
+    const isEditMode = !!workflowId;
 
     // Form state
     const [name, setName] = useState('');
@@ -34,11 +36,15 @@ export default function WorkflowBuilderPage() {
     // Data state
     const [agents, setAgents] = useState<Agent[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
         fetchAgents();
-    }, []);
+        if (isEditMode && workflowId) {
+            fetchWorkflow(workflowId);
+        }
+    }, [workflowId]);
 
     const fetchAgents = async () => {
         try {
@@ -49,6 +55,31 @@ export default function WorkflowBuilderPage() {
             setAgents(response.agents || []);
         } catch (err) {
             console.error('Failed to fetch agents:', err);
+        }
+    };
+
+    const fetchWorkflow = async (id: string) => {
+        try {
+            setIsFetching(true);
+            const workflow = await apiClient.getWorkflow(id);
+
+            // Populate form with existing data
+            setName(workflow.name);
+            setDescription(workflow.description || '');
+
+            // Convert API steps format to UI format
+            const uiSteps = (workflow.steps || []).map((step: any, index: number) => ({
+                id: `step-${index}`,
+                name: step.name || `Step ${step.step_number || index + 1}`,
+                agent_id: step.agent_id || '',
+                type: step.type || 'sequential',
+                config: step.config || {},
+            }));
+            setSteps(uiSteps);
+        } catch (err: any) {
+            setError(err.response?.data?.detail || 'Failed to load workflow');
+        } finally {
+            setIsFetching(false);
         }
     };
 
@@ -168,26 +199,31 @@ export default function WorkflowBuilderPage() {
                 return;
             }
 
-            // Build workflow config
-            const config = {
+            // Build workflow - steps should be at top level, not nested in config
+            const workflowData = {
+                project_id: projectId,
+                name,
+                description,
                 steps: steps.map((step, index) => ({
                     step_number: index + 1,
                     agent_id: step.agent_id,
                     type: step.type,
+                    name: step.name,
                     config: step.config || {},
                 })),
             };
 
-            await apiClient.createWorkflow({
-                project_id: projectId,
-                name,
-                description,
-                config,
-            });
+            if (isEditMode && workflowId) {
+                // Update existing workflow
+                await apiClient.updateWorkflow(workflowId, workflowData);
+            } else {
+                // Create new workflow
+                await apiClient.createWorkflow(workflowData);
+            }
 
             navigate('/dashboard/workflows');
         } catch (err: any) {
-            setError(err.response?.data?.detail || 'Failed to create workflow');
+            setError(err.response?.data?.detail || `Failed to ${isEditMode ? 'update' : 'create'} workflow`);
         } finally {
             setIsLoading(false);
         }
@@ -209,11 +245,19 @@ export default function WorkflowBuilderPage() {
     return (
         <div className="max-w-5xl">
             <div className="mb-8">
-                <h2 className="text-3xl font-bold text-gray-900">Create Workflow</h2>
+                <h2 className="text-3xl font-bold text-gray-900">
+                    {isEditMode ? 'Edit Workflow' : 'Create Workflow'}
+                </h2>
                 <p className="text-gray-600 mt-2">
                     Orchestrate multiple agents in a multi-step workflow
                 </p>
             </div>
+
+            {isFetching && (
+                <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg">
+                    Loading workflow data...
+                </div>
+            )}
 
             {error && (
                 <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -397,7 +441,7 @@ export default function WorkflowBuilderPage() {
                         disabled={isLoading || steps.length === 0}
                         className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50"
                     >
-                        {isLoading ? 'Creating...' : 'Create Workflow'}
+                        {isLoading ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create Workflow')}
                     </button>
                 </div>
             </form>

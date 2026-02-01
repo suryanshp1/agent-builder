@@ -7,18 +7,21 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../lib/api';
+import ExecuteWorkflowModal from '../components/ExecuteWorkflowModal';
 
 interface Workflow {
     id: string;
     name: string;
     description?: string;
-    config: any;
+    steps: any[];
     created_at: string;
 }
 
 export default function WorkflowsListPage() {
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [executeModalOpen, setExecuteModalOpen] = useState(false);
+    const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
 
     useEffect(() => {
         fetchWorkflows();
@@ -52,8 +55,13 @@ export default function WorkflowsListPage() {
         }
     };
 
-    const getStepCount = (config: any) => {
-        return config?.steps?.length || 0;
+    const handleExecuteClick = (workflow: Workflow) => {
+        setSelectedWorkflow(workflow);
+        setExecuteModalOpen(true);
+    };
+
+    const getStepCount = (workflow: Workflow) => {
+        return workflow.steps?.length || 0;
     };
 
     if (isLoading) {
@@ -102,12 +110,21 @@ export default function WorkflowsListPage() {
                         >
                             <div className="flex items-start justify-between mb-4">
                                 <div className="text-4xl">🔄</div>
-                                <button
-                                    onClick={() => handleDelete(workflow.id)}
-                                    className="text-red-600 hover:text-red-700 text-sm"
-                                >
-                                    Delete
-                                </button>
+                                <div className="flex items-center space-x-2">
+                                    <button
+                                        onClick={() => handleExecuteClick(workflow)}
+                                        className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition"
+                                        title="Execute workflow"
+                                    >
+                                        ▶ Run
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(workflow.id)}
+                                        className="text-red-600 hover:text-red-700 text-sm"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
                             </div>
 
                             <h3 className="font-semibold text-lg text-gray-900 mb-2">{workflow.name}</h3>
@@ -117,7 +134,7 @@ export default function WorkflowsListPage() {
 
                             <div className="flex items-center justify-between text-sm">
                                 <span className="text-gray-500">
-                                    {getStepCount(workflow.config)} steps
+                                    {getStepCount(workflow)} steps
                                 </span>
                                 <Link
                                     to={`/dashboard/workflows/${workflow.id}`}
@@ -129,6 +146,18 @@ export default function WorkflowsListPage() {
                         </div>
                     ))}
                 </div>
+            )}
+
+            {/* Execute Workflow Modal */}
+            {executeModalOpen && selectedWorkflow && (
+                <ExecuteWorkflowModal
+                    workflowId={selectedWorkflow.id}
+                    workflowName={selectedWorkflow.name}
+                    onClose={() => {
+                        setExecuteModalOpen(false);
+                        setSelectedWorkflow(null);
+                    }}
+                />
             )}
         </div>
     );

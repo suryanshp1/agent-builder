@@ -5,9 +5,10 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
 import apiClient from '../lib/api';
+import ProjectSelector from '../components/ProjectSelector';
 
 interface Tool {
     id: string;
@@ -19,6 +20,8 @@ interface Tool {
 
 export default function AgentBuilderPage() {
     const navigate = useNavigate();
+    const { agentId } = useParams<{ agentId?: string }>();
+    const isEditMode = !!agentId;
 
     // Form state
     const [name, setName] = useState('');
@@ -33,12 +36,16 @@ export default function AgentBuilderPage() {
     // Data state
     const [tools, setTools] = useState<Tool[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
     const [error, setError] = useState('');
 
-    // Fetch available tools
+    // Fetch available tools and agent data if editing
     useEffect(() => {
         fetchTools();
-    }, []);
+        if (isEditMode && agentId) {
+            fetchAgent(agentId);
+        }
+    }, [agentId]);
 
     const fetchTools = async () => {
         try {
@@ -46,6 +53,27 @@ export default function AgentBuilderPage() {
             setTools(response.tools);
         } catch (err) {
             console.error('Failed to fetch tools:', err);
+        }
+    };
+
+    const fetchAgent = async (id: string) => {
+        try {
+            setIsFetching(true);
+            const agent = await apiClient.getAgent(id);
+
+            // Populate form with existing data
+            setName(agent.name);
+            setRole(agent.role);
+            setGoal(agent.goal);
+            setInstructions(agent.instructions || '');
+            setSelectedTools(agent.tool_ids || []);
+            setTemperature(agent.llm_config?.temperature || 0.7);
+            setMaxTokens(agent.llm_config?.max_tokens || 2000);
+            setModel(agent.llm_config?.model || 'qwen/qwen-3-72b');
+        } catch (err: any) {
+            setError(err.response?.data?.detail || 'Failed to load agent');
+        } finally {
+            setIsFetching(false);
         }
     };
 
@@ -179,7 +207,7 @@ export default function AgentBuilderPage() {
                 return;
             }
 
-            await apiClient.createAgent({
+            const agentData = {
                 project_id: projectId,
                 name,
                 role,
@@ -192,11 +220,19 @@ export default function AgentBuilderPage() {
                 },
                 tool_ids: selectedTools,
                 memory_config: { type: "session" },
-            });
+            };
+
+            if (isEditMode && agentId) {
+                // Update existing agent
+                await apiClient.updateAgent(agentId, agentData);
+            } else {
+                // Create new agent
+                await apiClient.createAgent(agentData);
+            }
 
             navigate('/dashboard/agents');
         } catch (err: any) {
-            setError(err.response?.data?.detail || 'Failed to create agent');
+            setError(err.response?.data?.detail || `Failed to ${isEditMode ? 'update' : 'create'} agent`);
         } finally {
             setIsLoading(false);
         }
@@ -224,6 +260,11 @@ export default function AgentBuilderPage() {
                     {error}
                 </div>
             )}
+
+            {/* Project Selector */}
+            <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <ProjectSelector />
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-8">
                 {/* Basic Configuration */}
@@ -300,8 +341,8 @@ export default function AgentBuilderPage() {
                             <label
                                 key={tool.id}
                                 className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition ${selectedTools.includes(tool.id)
-                                        ? 'border-blue-500 bg-blue-50'
-                                        : 'border-gray-200 hover:border-gray-300'
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : 'border-gray-200 hover:border-gray-300'
                                     }`}
                             >
                                 <input

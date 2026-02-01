@@ -7,7 +7,7 @@ import logging
 
 from app.config import settings
 from app.database import engine, Base, get_db
-from app.routers import agents, workflows, tools, executions, auth
+from app.routers import agents, workflows, tools, executions, auth, projects
 
 # Configure logging
 logging.basicConfig(
@@ -93,6 +93,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
 app.include_router(workflows.router, prefix="/api/workflows", tags=["Workflows"])
 app.include_router(tools.router, prefix="/api/tools", tags=["Tools"])

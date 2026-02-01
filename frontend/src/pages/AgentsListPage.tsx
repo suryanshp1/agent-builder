@@ -131,10 +131,10 @@ export default function AgentsListPage() {
                                     {agent.tool_ids?.length || 0} tools
                                 </span>
                                 <Link
-                                    to={`/dashboard/agents/${agent.id}`}
+                                    to={`/dashboard/agents/${agent.id}/edit`}
                                     className="text-blue-600 hover:text-blue-700 font-medium"
                                 >
-                                    View Details →
+                                    Edit →
                                 </Link>
                             </div>
                         </div>

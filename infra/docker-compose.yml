@@ -39,7 +39,7 @@ services:
       dockerfile: Dockerfile
     container_name: agentbuilder-backend
     env_file:
-      - ../.env.docker
+      - ../.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,7 +61,7 @@ services:
       dockerfile: Dockerfile
     container_name: agentbuilder-celery-worker
     env_file:
-      - ../.env.docker
+      - ../.env
     depends_on:
       - postgres
       - redis
@@ -73,7 +73,7 @@ services:
     restart: unless-stopped
     # Override entrypoint to skip database init (backend handles that)
     entrypoint: []
-    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info"]
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "-Q", "workflow_execution,agent_execution,celery"]
 
   # Celery Beat (Scheduler)
   celery_beat:
@@ -82,7 +82,7 @@ services:
       dockerfile: Dockerfile
     container_name: agentbuilder-celery-beat
     env_file:
-      - ../.env.docker
+      - ../.env
     depends_on:
       - postgres
       - redis

@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.database import SessionLocal, engine, Base
-from app.models import Organization, User, Tool
+from app.models import Organization, User, Tool, Project
 from app.services.tool_registry import initialize_prebuilt_tools
 from app.utils.auth import get_password_hash
 import uuid
@@ -85,6 +85,32 @@ def create_admin_user(db, organization_id, email="admin@agentbuilder.com", passw
     return user
 
 
+def create_default_project(db, organization_id, user_id, name="Default Project"):
+    """Create default project for organization"""
+    project = db.query(Project).filter(
+        Project.organization_id == organization_id,
+        Project.name == name
+    ).first()
+    
+    if not project:
+        logger.info(f"Creating default project: {name}")
+        project = Project(
+            id=uuid.uuid4(),
+            name=name,
+            description="Auto-created default project for organizing agents and workflows",
+            organization_id=organization_id,
+            created_by=user_id
+        )
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+        logger.info(f"Created project: {project.name} (ID: {project.id})")
+    else:
+        logger.info(f"Project already exists: {project.name} (ID: {project.id})")
+    
+    return project
+
+
 def main():
     """Main initialization function"""
     logger.info("=" * 60)
@@ -104,6 +130,9 @@ def main():
         # Create admin user
         admin = create_admin_user(db, org.id)
         
+        # Create default project
+        project = create_default_project(db, org.id, admin.id)
+        
         # Initialize prebuilt tools
         tools = init_prebuilt_tools(db)
         
@@ -113,6 +142,7 @@ def main():
         logger.info(f"Organization ID: {org.id}")
         logger.info(f"Admin Email: {admin.email}")
         logger.info(f"Admin Password: admin123 (CHANGE THIS!)")
+        logger.info(f"Default Project ID: {project.id}")
         logger.info(f"Prebuilt Tools: {len(tools)}")
         logger.info("=" * 60)
         

@@ -87,10 +87,13 @@ class WorkflowEngine:
                             log_callback=log_callback
                         )
                         
-                        # Capture outputs
+                        # Capture outputs (Explicit)
                         output_vars = step_cfg.get("output_capture", [])
                         for var in output_vars:
                             state["step_outputs"][var] = result.get("output")
+                        
+                        # Implicit capture (by step name)
+                        state["step_outputs"][step_cfg["name"]] = result.get("output")
                         
                         state["messages"] = state.get("messages", []) + [f"Step {step_cfg['name']}: {result.get('output')}"]
                         state["current_step"] = state.get("current_step", 0) + 1

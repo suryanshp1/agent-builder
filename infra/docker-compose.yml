@@ -40,6 +40,9 @@ services:
     container_name: agentbuilder-backend
     env_file:
       - ../.env
+    environment:
+      - OPENROUTER_BASE_URL=http://host.docker.internal:11434/v1
+      - OPENROUTER_API_KEY=ollama
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,6 +65,9 @@ services:
     container_name: agentbuilder-celery-worker
     env_file:
       - ../.env
+    environment:
+      - OPENROUTER_BASE_URL=http://host.docker.internal:11434/v1
+      - OPENROUTER_API_KEY=ollama
     depends_on:
       - postgres
       - redis
